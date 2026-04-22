@@ -39,11 +39,11 @@ jobs:
           sleep 5
           echo "MLflow server started"
 
-      # ===== STEP 5: Run MLflow Project (model training) =====
+      # ===== STEP 5: Run MLflow Project (menggunakan mlflow run) =====
       - name: Run MLflow Project
         run: |
           cd MLProject
-          python modelling.py
+          mlflow run . --env-manager=local --experiment-name="wine-quality-ci"
 
       # ===== STEP 6: Save Artifacts =====
       - name: Upload MLflow artifacts to GitHub
