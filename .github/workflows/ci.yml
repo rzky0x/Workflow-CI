@@ -1,0 +1,83 @@
+name: CI - MLflow Model Training & Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  MLFLOW_TRACKING_URI: "http://127.0.0.1:5000"
+
+jobs:
+  train-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ===== STEP 1: Checkout =====
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ===== STEP 2: Setup Python =====
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.7"
+
+      # ===== STEP 3: Install dependencies =====
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install mlflow==2.19.0 scikit-learn==1.6.0 pandas==2.2.3 numpy==2.1.3 matplotlib==3.9.3 seaborn==0.13.2
+
+      # ===== STEP 4: Start MLflow server =====
+      - name: Start MLflow Tracking Server
+        run: |
+          mlflow server --host 127.0.0.1 --port 5000 --backend-store-uri sqlite:///mlflow.db --default-artifact-root ./mlruns &
+          sleep 5
+          echo "MLflow server started"
+
+      # ===== STEP 5: Run MLflow Project (model training) =====
+      - name: Run MLflow Project
+        run: |
+          cd MLProject
+          python modelling.py
+
+      # ===== STEP 6: Save Artifacts =====
+      - name: Upload MLflow artifacts to GitHub
+        uses: actions/upload-artifact@v4
+        with:
+          name: mlflow-artifacts
+          path: |
+            MLProject/mlruns/
+            MLProject/ci_artifacts/
+          retention-days: 30
+
+      # ===== STEP 7: Commit artifacts to repo =====
+      - name: Commit artifacts to repository
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add -f MLProject/ci_artifacts/ || true
+          git diff --cached --quiet || git commit -m "Update CI artifacts [automated]"
+          git push || true
+
+      # ===== STEP 8: Build Docker Image =====
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/wine-quality-model:latest

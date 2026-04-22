@@ -1,0 +1,3 @@
+Docker Hub Repository: https://hub.docker.com/r/rzky0x/wine-quality-model
+
+(Belum diterapkan - akan diperbarui setelah akun Docker Hub dibuat)
